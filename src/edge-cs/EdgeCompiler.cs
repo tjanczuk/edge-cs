@@ -17,11 +17,13 @@ public class EdgeCompiler
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
     {
         string source = (string)parameters["source"];
-
+        string fileName = string.Empty;
         // read source from file
         if (source.EndsWith(".cs", StringComparison.InvariantCultureIgnoreCase)
             || source.EndsWith(".csx", StringComparison.InvariantCultureIgnoreCase))
         {
+            // retain fileName for debugging purposes
+            fileName = source;
             source = File.ReadAllText(source);
         }
 
@@ -46,10 +48,11 @@ public class EdgeCompiler
             }
         }
 
+        string lineDirective = fileName != string.Empty ? "#line 1 " + "\"" + fileName + "\"\n" : string.Empty;
         // try to compile source code as a class library
         Assembly assembly;
         string errorsClass;
-        if (!this.TryCompile(source, references, out errorsClass, out assembly))
+        if (!this.TryCompile(lineDirective + source, references, out errorsClass, out assembly))
         {
             // try to compile source code as an async lambda expression
             string errorsLambda;
@@ -58,12 +61,13 @@ public class EdgeCompiler
                 + "using System.Threading.Tasks;\n"
                 + "public class Startup {\n"
                 + "    public async Task<object> Invoke(object ___input) {\n"
+                + lineDirective
                 + "        Func<object, Task<object>> func = " + source + ";\n"
                 + "        return await func(___input);\n"
                 + "    }\n"
                 + "}";
 
-            if (!TryCompile(source, references, out errorsLambda, out assembly))
+            if (!TryCompile(fileName != string.Empty ? lineDirective + source : source, references, out errorsLambda, out assembly))
             {
                 throw new InvalidOperationException(
                     "Unable to compile C# code.\n----> Errors when compiling as a CLR library:\n"
@@ -101,6 +105,7 @@ public class EdgeCompiler
         CSharpCodeProvider csc = new CSharpCodeProvider(options);
         CompilerParameters parameters = new CompilerParameters();
         parameters.GenerateInMemory = true;
+        parameters.IncludeDebugInformation = true;
         parameters.ReferencedAssemblies.AddRange(references.ToArray());
         parameters.ReferencedAssemblies.Add("System.dll");
         CompilerResults results = csc.CompileAssemblyFromSource(parameters, source);
