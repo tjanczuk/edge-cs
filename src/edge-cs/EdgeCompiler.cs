@@ -48,7 +48,23 @@ public class EdgeCompiler
             }
         }
 
-        string lineDirective = fileName != string.Empty ? "#line 1 " + "\"" + fileName + "\"\n" : string.Empty;
+        string jsFileNameStr = string.Empty;
+        object jsFileName;
+        int? jsLineNumber = null;
+        if (parameters.TryGetValue("jsFileName", out jsFileName))
+        {
+            jsFileNameStr = (string)jsFileName;
+            jsLineNumber = (int)parameters["jsLineNumber"];
+        }
+
+        
+        int lineNumber = 1;
+        if (jsFileNameStr != string.Empty)
+        {
+            fileName = jsFileNameStr;
+            lineNumber = jsLineNumber.Value;
+        }
+        string lineDirective = fileName != string.Empty ? string.Format("#line {0} \"{1}\"\n", lineNumber, fileName) : string.Empty;
         // try to compile source code as a class library
         Assembly assembly;
         string errorsClass;
