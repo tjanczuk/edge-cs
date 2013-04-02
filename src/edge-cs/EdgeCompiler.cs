@@ -13,17 +13,25 @@ public class EdgeCompiler
 {
     static readonly Regex referencesRegex = new Regex(@"\/\/\#r\s+""[^""]+""\s*", RegexOptions.Multiline);
     static readonly Regex referenceRegex = new Regex(@"\/\/\#r\s+""([^""]+)""\s*");
+    static readonly bool debuggingEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG"));
 
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
     {
         string source = (string)parameters["source"];
-        string fileName = string.Empty;
+        string lineDirective = string.Empty;
+        string fileName = null;
+        int lineNumber = 1;
+
         // read source from file
         if (source.EndsWith(".cs", StringComparison.InvariantCultureIgnoreCase)
             || source.EndsWith(".csx", StringComparison.InvariantCultureIgnoreCase))
         {
             // retain fileName for debugging purposes
-            fileName = source;
+            if (debuggingEnabled)
+            {
+                fileName = source;
+            }
+
             source = File.ReadAllText(source);
         }
 
@@ -48,23 +56,21 @@ public class EdgeCompiler
             }
         }
 
-        string jsFileNameStr = string.Empty;
-        object jsFileName;
-        int? jsLineNumber = null;
-        if (parameters.TryGetValue("jsFileName", out jsFileName))
+        if (debuggingEnabled)
         {
-            jsFileNameStr = (string)jsFileName;
-            jsLineNumber = (int)parameters["jsLineNumber"];
+            object jsFileName;
+            if (parameters.TryGetValue("jsFileName", out jsFileName))
+            {
+                fileName = (string)jsFileName;
+                lineNumber = (int)parameters["jsLineNumber"];
+            }
+            
+            if (!string.IsNullOrEmpty(fileName)) 
+            {
+                lineDirective = string.Format("#line {0} \"{1}\"\n", lineNumber, fileName);
+            }
         }
 
-        
-        int lineNumber = 1;
-        if (jsFileNameStr != string.Empty)
-        {
-            fileName = jsFileNameStr;
-            lineNumber = jsLineNumber.Value;
-        }
-        string lineDirective = fileName != string.Empty ? string.Format("#line {0} \"{1}\"\n", lineNumber, fileName) : string.Empty;
         // try to compile source code as a class library
         Assembly assembly;
         string errorsClass;
@@ -79,11 +85,12 @@ public class EdgeCompiler
                 + "    public async Task<object> Invoke(object ___input) {\n"
                 + lineDirective
                 + "        Func<object, Task<object>> func = " + source + ";\n"
+                + "#line hidden\n"
                 + "        return await func(___input);\n"
                 + "    }\n"
                 + "}";
 
-            if (!TryCompile(fileName != string.Empty ? lineDirective + source : source, references, out errorsLambda, out assembly))
+            if (!TryCompile(source, references, out errorsLambda, out assembly))
             {
                 throw new InvalidOperationException(
                     "Unable to compile C# code.\n----> Errors when compiling as a CLR library:\n"
@@ -121,7 +128,7 @@ public class EdgeCompiler
         CSharpCodeProvider csc = new CSharpCodeProvider(options);
         CompilerParameters parameters = new CompilerParameters();
         parameters.GenerateInMemory = true;
-        parameters.IncludeDebugInformation = true;
+        parameters.IncludeDebugInformation = debuggingEnabled;
         parameters.ReferencedAssemblies.AddRange(references.ToArray());
         parameters.ReferencedAssemblies.Add("System.dll");
         CompilerResults results = csc.CompileAssemblyFromSource(parameters, source);
