@@ -11,7 +11,8 @@ using System.Threading.Tasks;
 
 public class EdgeCompiler
 {
-    static readonly Regex referenceRegex = new Regex(@"^\s*(?:\/{2})?\#r\s+""([^""]+)""", RegexOptions.Multiline);
+    static readonly Regex referenceRegex = new Regex(@"^[\ \t]*(?:\/{2})?\#r[\ \t]+""([^""]+)""", RegexOptions.Multiline);
+    static readonly Regex usingRegex = new Regex(@"^[\ \t]*(using[\ \t]+[^\ \t]+[\ \t]*\;)", RegexOptions.Multiline);
     static readonly bool debuggingEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG"));
 
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
@@ -75,9 +76,20 @@ public class EdgeCompiler
         if (!this.TryCompile(lineDirective + source, references, out errorsClass, out assembly))
         {
             // try to compile source code as an async lambda expression
+
+            // extract using statements first
+            string usings = "";
+            match = usingRegex.Match(source);
+            while (match.Success)
+            {
+                usings += match.Groups[1].Value;
+                source = source.Substring(0, match.Index) + source.Substring(match.Index + match.Length);
+                match = referenceRegex.Match(source);
+            }
+
             string errorsLambda;
             source = 
-                "using System;\n"
+                usings + "using System;\n"
                 + "using System.Threading.Tasks;\n"
                 + "public class Startup {\n"
                 + "    public async Task<object> Invoke(object ___input) {\n"
