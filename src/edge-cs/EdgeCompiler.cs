@@ -11,8 +11,7 @@ using System.Threading.Tasks;
 
 public class EdgeCompiler
 {
-    static readonly Regex referencesRegex = new Regex(@"\/\/\#r\s+""[^""]+""\s*", RegexOptions.Multiline);
-    static readonly Regex referenceRegex = new Regex(@"\/\/\#r\s+""([^""]+)""\s*");
+    static readonly Regex referenceRegex = new Regex(@"^\s*(?:\/{2})?\#r\s+""([^""]+)""", RegexOptions.Multiline);
     static readonly bool debuggingEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG"));
 
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
@@ -46,14 +45,13 @@ public class EdgeCompiler
             }
         }
 
-        // add assembly references provided in code as //#r "assemblyname" comments
-        foreach (Match match in referencesRegex.Matches(source))
+        // add assembly references provided in code as [//]#r "assemblyname" lines
+        Match match = referenceRegex.Match(source);
+        while (match.Success)
         {
-            Match referenceMatch = referenceRegex.Match(match.Value);
-            if (referenceMatch.Success)
-            {
-                references.Add(referenceMatch.Groups[1].Value);
-            }
+            references.Add(match.Groups[1].Value);
+            source = source.Substring(0, match.Index) + source.Substring(match.Index + match.Length);
+            match = referenceRegex.Match(source);
         }
 
         if (debuggingEnabled)
