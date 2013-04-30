@@ -14,6 +14,7 @@ public class EdgeCompiler
     static readonly Regex referenceRegex = new Regex(@"^[\ \t]*(?:\/{2})?\#r[\ \t]+""([^""]+)""", RegexOptions.Multiline);
     static readonly Regex usingRegex = new Regex(@"^[\ \t]*(using[\ \t]+[^\ \t]+[\ \t]*\;)", RegexOptions.Multiline);
     static readonly bool debuggingEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG"));
+    static readonly bool debuggingSelfEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG_SELF"));
 
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
     {
@@ -84,7 +85,7 @@ public class EdgeCompiler
             {
                 usings += match.Groups[1].Value;
                 source = source.Substring(0, match.Index) + source.Substring(match.Index + match.Length);
-                match = referenceRegex.Match(source);
+                match = usingRegex.Match(source);
             }
 
             string errorsLambda;
@@ -99,6 +100,12 @@ public class EdgeCompiler
                 + "        return await func(___input);\n"
                 + "    }\n"
                 + "}";
+
+            if (debuggingSelfEnabled)
+            {
+                Console.WriteLine("Edge-cs trying to compile async lambda expression:");
+                Console.WriteLine(source);
+            }
 
             if (!TryCompile(source, references, out errorsLambda, out assembly))
             {
