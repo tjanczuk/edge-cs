@@ -148,6 +148,8 @@ public class EdgeCompiler
         parameters.IncludeDebugInformation = debuggingEnabled;
         parameters.ReferencedAssemblies.AddRange(references.ToArray());
         parameters.ReferencedAssemblies.Add("System.dll");
+        parameters.ReferencedAssemblies.Add("System.Core.dll");
+        parameters.ReferencedAssemblies.Add("Microsoft.CSharp.dll");
         CompilerResults results = csc.CompileAssemblyFromSource(parameters, source);
         if (results.Errors.HasErrors)
         {
