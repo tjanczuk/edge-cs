@@ -15,6 +15,24 @@ public class EdgeCompiler
     static readonly Regex usingRegex = new Regex(@"^[\ \t]*(using[\ \t]+[^\ \t]+[\ \t]*\;)", RegexOptions.Multiline);
     static readonly bool debuggingEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG"));
     static readonly bool debuggingSelfEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG_SELF"));
+    static Dictionary<string, Dictionary<string, Assembly>> referencedAssemblies = new Dictionary<string, Dictionary<string, Assembly>>();
+
+    static EdgeCompiler()
+    {
+        AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+    }
+
+    static Assembly CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
+    {
+        Assembly result = null;
+        Dictionary<string, Assembly> requesting;
+        if (referencedAssemblies.TryGetValue(args.RequestingAssembly.FullName, out requesting))
+        {
+            requesting.TryGetValue(args.Name, out result);
+        }
+
+        return result;
+    }
 
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
     {
@@ -114,6 +132,21 @@ public class EdgeCompiler
                     + errorsClass
                     + "\n----> Errors when compiling as a CLR async lambda expression:\n"
                     + errorsLambda);
+            }
+        }
+
+        // store referenced assemblies to help resolve them at runtime from AppDomain.AssemblyResolve
+        referencedAssemblies[assembly.FullName] = new Dictionary<string, Assembly>();
+        foreach (var reference in references)
+        {
+            try
+            {
+                var referencedAssembly = Assembly.UnsafeLoadFrom(reference);
+                referencedAssemblies[assembly.FullName][referencedAssembly.FullName] = referencedAssembly;
+            }
+            catch
+            {
+                // empty - best effort
             }
         }
 
