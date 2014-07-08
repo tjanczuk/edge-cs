@@ -65,6 +65,15 @@ public class EdgeCompiler
             }
         }
 
+        List<string> compilerOptions = new List<string>();
+        if (parameters.TryGetValue("flags", out v))
+        {
+            foreach (object flag in (object[])v)
+            {
+                compilerOptions.Add((string)flag);
+            }
+        }
+
         // add assembly references provided in code as [//]#r "assemblyname" lines
         Match match = referenceRegex.Match(source);
         while (match.Success)
@@ -92,7 +101,7 @@ public class EdgeCompiler
         // try to compile source code as a class library
         Assembly assembly;
         string errorsClass;
-        if (!this.TryCompile(lineDirective + source, references, out errorsClass, out assembly))
+        if (!this.TryCompile(lineDirective + source, references, compilerOptions, out errorsClass, out assembly))
         {
             // try to compile source code as an async lambda expression
 
@@ -125,7 +134,7 @@ public class EdgeCompiler
                 Console.WriteLine(source);
             }
 
-            if (!TryCompile(source, references, out errorsLambda, out assembly))
+            if (!TryCompile(source, references, compilerOptions, out errorsLambda, out assembly))
             {
                 throw new InvalidOperationException(
                     "Unable to compile C# code.\n----> Errors when compiling as a CLR library:\n"
@@ -168,7 +177,7 @@ public class EdgeCompiler
         return result;
     }
 
-    bool TryCompile(string source, List<string> references, out string errors, out Assembly assembly)
+    bool TryCompile(string source, List<string> references, List<string> compilerOptions, out string errors, out Assembly assembly)
     {
         bool result = false;
         assembly = null;
@@ -183,6 +192,7 @@ public class EdgeCompiler
         parameters.ReferencedAssemblies.Add("System.dll");
         parameters.ReferencedAssemblies.Add("System.Core.dll");
         parameters.ReferencedAssemblies.Add("Microsoft.CSharp.dll");
+        parameters.CompilerOptions = string.Join(" ", compilerOptions);
         CompilerResults results = csc.CompileAssemblyFromSource(parameters, source);
         if (results.Errors.HasErrors)
         {
