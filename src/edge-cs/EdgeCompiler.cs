@@ -183,6 +183,10 @@ public class EdgeCompiler
         parameters.ReferencedAssemblies.Add("System.dll");
         parameters.ReferencedAssemblies.Add("System.Core.dll");
         parameters.ReferencedAssemblies.Add("Microsoft.CSharp.dll");
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_TEMP_DIR")))
+        {
+            parameters.TempFiles = new TempFileCollection(Environment.GetEnvironmentVariable("EDGE_CS_TEMP_DIR"));
+        }
         CompilerResults results = csc.CompileAssemblyFromSource(parameters, source);
         if (results.Errors.HasErrors)
         {
