@@ -15,7 +15,9 @@ public class EdgeCompiler
     static readonly Regex usingRegex = new Regex(@"^[\ \t]*(using[\ \t]+[^\ \t]+[\ \t]*\;)", RegexOptions.Multiline);
     static readonly bool debuggingEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG"));
     static readonly bool debuggingSelfEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG_SELF"));
+    static readonly bool cacheEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_CACHE"));
     static Dictionary<string, Dictionary<string, Assembly>> referencedAssemblies = new Dictionary<string, Dictionary<string, Assembly>>();
+    static Dictionary<string, Func<object, Task<object>>> funcCache = new Dictionary<string, Func<object, Task<object>>>();
 
     static EdgeCompiler()
     {
@@ -52,6 +54,26 @@ public class EdgeCompiler
             }
 
             source = File.ReadAllText(source);
+        }
+
+        if (debuggingSelfEnabled)
+        {
+            Console.WriteLine("Func cache size: " + funcCache.Count);
+        }
+
+        var originalSource = source;
+        if (funcCache.ContainsKey(originalSource))
+        {
+            if (debuggingSelfEnabled)
+            {
+                Console.WriteLine("Serving func from cache.");
+            }
+
+            return funcCache[originalSource];
+        }
+        else if (debuggingSelfEnabled)
+        {
+            Console.WriteLine("Func not found in cache. Compiling.");
         }
 
         // add assembly references provided explicitly through parameters
@@ -164,6 +186,11 @@ public class EdgeCompiler
         {
             return (Task<object>)invokeMethod.Invoke(instance, new object[] { input });
         };
+
+        if (cacheEnabled)
+        {
+            funcCache[originalSource] = result;
+        }
 
         return result;
     }
