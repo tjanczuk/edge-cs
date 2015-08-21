@@ -84,7 +84,8 @@ public class EdgeCompiler
         Dictionary<string, string> references = new Dictionary<string, string>
         {
             {"System.Runtime", ""},
-            {"System.Threading.Tasks", ""}
+            {"System.Threading.Tasks", ""},
+            {"System.Dynamic.Runtime", ""}
         };
 
         object v;
@@ -326,7 +327,7 @@ public class EdgeCompiler
             Console.WriteLine("Starting compilation");
         }
 
-        CSharpCompilation compilation = CSharpCompilation.Create("output.dll", new SyntaxTree[]
+        CSharpCompilation compilation = CSharpCompilation.Create(Guid.NewGuid() + ".dll", new SyntaxTree[]
         {
             syntaxTree
         }, metadataReferences, compilationOptions);
