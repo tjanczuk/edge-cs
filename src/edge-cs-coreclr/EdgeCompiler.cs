@@ -23,21 +23,13 @@ public class EdgeCompiler
     static readonly bool debuggingSelfEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG_SELF"));
     static readonly bool cacheEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_CACHE"));
     static Dictionary<string, Func<object, Task<object>>> funcCache = new Dictionary<string, Func<object, Task<object>>>();
-    static StreamAssemblyLoadContext AssemblyLoadContext = new StreamAssemblyLoadContext();
     static readonly FrameworkName targetFrameworkName = new FrameworkName("DNXCore,Version=v5.0");
 
-    private class StreamAssemblyLoadContext : AssemblyLoadContext
-    {
-        [SecuritySafeCritical]
-        protected override Assembly Load(AssemblyName assemblyName)
-        {
-            return Assembly.Load(assemblyName);
-        }
+    private Func<Stream, Assembly> _assemblyLoader;
 
-        public Assembly LoadFrom(Stream assembly)
-        {
-            return LoadFromStream(assembly);
-        }
+    public void SetAssemblyLoader(Func<Stream, Assembly> assemblyLoader)
+    {
+        _assemblyLoader = assemblyLoader;
     }
 
     public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
@@ -85,7 +77,8 @@ public class EdgeCompiler
         {
             {"System.Runtime", ""},
             {"System.Threading.Tasks", ""},
-            {"System.Dynamic.Runtime", ""}
+            {"System.Dynamic.Runtime", ""},
+            {"Microsoft.CSharp", ""}
         };
 
         object v;
@@ -183,7 +176,7 @@ public class EdgeCompiler
 
         if (startupType == null)
         {
-            throw new TypeLoadException("Type not found: " + (string)parameters["typeName"]);
+            throw new TypeLoadException("Could not load type '" + (string)parameters["typeName"] + "'");
         }
 
         object instance = Activator.CreateInstance(startupType);
@@ -365,7 +358,7 @@ public class EdgeCompiler
             else
             {
                 memoryStream.Seek(0, SeekOrigin.Begin);
-                assembly = AssemblyLoadContext.LoadFrom(memoryStream);
+                assembly = _assemblyLoader(memoryStream);
 
                 if (debuggingSelfEnabled)
                 {
