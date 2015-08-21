@@ -1,0 +1,7 @@
+{
+    "sdk": {
+        "version": "1.0.0-beta7-12331",
+        "runtime": "coreclr",
+        "architecture": "x64"
+    }
+}
