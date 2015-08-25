@@ -22,9 +22,9 @@ public class EdgeCompiler
     private static readonly bool CacheEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_CACHE"));
     private static readonly Dictionary<string, Func<object, Task<object>>> FuncCache = new Dictionary<string, Func<object, Task<object>>>();
     private static readonly FrameworkName TargetFrameworkName = new FrameworkName("DNXCore,Version=v5.0");
-    private Func<Stream, Assembly> _assemblyLoader;
+    private static Func<Stream, Assembly> _assemblyLoader;
 
-    public void SetAssemblyLoader(Func<Stream, Assembly> assemblyLoader)
+    public static void SetAssemblyLoader(Func<Stream, Assembly> assemblyLoader)
     {
         _assemblyLoader = assemblyLoader;
     }
