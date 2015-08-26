@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
-using Microsoft.Framework.Runtime;
-using NuGet;
 
 // ReSharper disable once CheckNamespace
 public class EdgeCompiler
@@ -21,7 +18,6 @@ public class EdgeCompiler
     private static readonly bool DebuggingSelfEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_DEBUG_SELF"));
     private static readonly bool CacheEnabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("EDGE_CS_CACHE"));
     private static readonly Dictionary<string, Func<object, Task<object>>> FuncCache = new Dictionary<string, Func<object, Task<object>>>();
-    private static readonly FrameworkName TargetFrameworkName = new FrameworkName("DNXCore,Version=v5.0");
     private static Func<Stream, Assembly> _assemblyLoader;
 
     public static void SetAssemblyLoader(Func<Stream, Assembly> assemblyLoader)
@@ -37,7 +33,7 @@ public class EdgeCompiler
         }
     }
 
-    public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters)
+    public Func<object, Task<object>> CompileFunc(IDictionary<string, object> parameters, IDictionary<string, string> compileAssemblies)
     {
         string source = (string) parameters["source"];
         string lineDirective = string.Empty;
@@ -69,42 +65,21 @@ public class EdgeCompiler
         DebugMessage("EdgeCompiler::CompileFunc (CLR) - Func not found in cache, compiling");
 
         // Add assembly references provided explicitly through parameters, along with some default ones
-        Dictionary<string, string> references = new Dictionary<string, string>
+        List<string> references = new List<string>
         {
-            {
-                "System.Runtime", ""
-            },
-            {
-                "System.Threading.Tasks", ""
-            },
-            {
-                "System.Dynamic.Runtime", ""
-            },
-            {
-                "Microsoft.CSharp", ""
-            }
+            "System.Runtime",
+            "System.Threading.Tasks",
+            "System.Dynamic.Runtime",
+            "Microsoft.CSharp"
         };
 
         object providedReferences;
 
         if (parameters.TryGetValue("references", out providedReferences))
         {
-            IDictionary<string, object> referencesDictionary = providedReferences as IDictionary<string, object>;
-
-            if (referencesDictionary != null)
+            foreach (object reference in (object[]) providedReferences)
             {
-                foreach (string reference in referencesDictionary.Keys)
-                {
-                    references[reference] = (string) referencesDictionary[reference];
-                }
-            }
-
-            else
-            {
-                foreach (object reference in (object[]) providedReferences)
-                {
-                    references[(string) reference] = "";
-                }
+                references.Add((string)reference);
             }
         }
 
@@ -113,7 +88,7 @@ public class EdgeCompiler
 
         while (match.Success)
         {
-            references[match.Groups[1].Value] = "";
+            references.Add(match.Groups[1].Value);
             source = source.Substring(0, match.Index) + source.Substring(match.Index + match.Length);
             match = ReferenceRegex.Match(source);
         }
@@ -138,7 +113,7 @@ public class EdgeCompiler
         Assembly assembly;
         string errorsClass;
 
-        if (!TryCompile(lineDirective + source, references, out errorsClass, out assembly))
+        if (!TryCompile(lineDirective + source, references, compileAssemblies, out errorsClass, out assembly))
         {
             // Try to compile source code as an async lambda expression
 
@@ -171,7 +146,7 @@ public class Startup
 
             DebugMessage("EdgeCompiler::CompileFunc (CLR) - Trying to compile async lambda expression:{0}{1}", Environment.NewLine, source);
 
-            if (!TryCompile(source, references, out errorsLambda, out assembly))
+            if (!TryCompile(source, references, compileAssemblies, out errorsLambda, out assembly))
             {
                 throw new InvalidOperationException("Unable to compile C# code.\n----> Errors when compiling as a CLR library:\n" + errorsClass +
                                                     "\n----> Errors when compiling as a CLR async lambda expression:\n" + errorsLambda);
@@ -208,13 +183,12 @@ public class Startup
         return result;
     }
 
-    private bool TryCompile(string source, IDictionary<string, string> references, out string errors, out Assembly assembly)
+    private bool TryCompile(string source, List<string> references, IDictionary<string, string> compileAssemblies, out string errors, out Assembly assembly)
     {
         assembly = null;
         errors = null;
 
         string projectDirectory = Environment.GetEnvironmentVariable("EDGE_APP_ROOT") ?? Directory.GetCurrentDirectory();
-        PackageRepository packageRepository = new PackageRepository(NuGetDependencyResolver.ResolveRepositoryPath(projectDirectory));
 
         SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
         List<MetadataReference> metadataReferences = new List<MetadataReference>();
@@ -222,7 +196,7 @@ public class Startup
         DebugMessage("EdgeCompiler::TryCompile (CLR) - Resolving {0} references", references.Count);
 
         // Search the NuGet package repository for each reference
-        foreach (string reference in references.Keys)
+        foreach (string reference in references)
         {
             DebugMessage("EdgeCompiler::TryCompile (CLR) - Searching for {0}", reference);
 
@@ -230,7 +204,7 @@ public class Startup
             // System.Data.dll), we fall back to stripping off the extension and treating the reference like a NuGet package
             if (reference.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             {
-                if (reference.Contains(Path.DirectorySeparatorChar))
+                if (reference.Contains(Path.DirectorySeparatorChar.ToString()))
                 {
                     metadataReferences.Add(MetadataReference.CreateFromFile(Path.IsPathRooted(reference)
                         ? reference
@@ -248,57 +222,14 @@ public class Startup
             string referenceName = reference.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
                 ? reference.Substring(0, reference.Length - 4)
                 : reference;
-            string referencePath = null;
-            PackageInfo referencePackage;
 
-            // If the package version is omitted, use the most recent version in the repository
-            if (String.IsNullOrEmpty(references[reference]))
+            if (!compileAssemblies.ContainsKey(referenceName))
             {
-                referencePackage = packageRepository.FindPackagesById(referenceName).OrderByDescending(p => p.Version).FirstOrDefault();
+                throw new Exception(String.Format("Unable to resolve reference to {0}.", referenceName));
             }
 
-            else
-            {
-                SemanticVersion packageVersion = SemanticVersion.Parse(references[reference]);
-                referencePackage = packageRepository.FindPackagesById(referenceName).OrderBy(p => p.Version).FirstOrDefault(p => p.Version == packageVersion);
-            }
-
-            if (referencePackage == null)
-            {
-                throw new Exception(String.Format("Unable to find the NuGet package for {0}.", referenceName));
-            }
-
-            // Search for an assembly to reference during compilation in the following order:
-            //  1. An assembly in the ref/ directory whose filename matches the package name and where the target framework matches
-            //  2. An assembly in the ref/ directory whose filename matches the package name and where the target framework is not specified
-            //  3. An assembly elsewhere in the package directory structure whose filename matches the package name and where the target framework matches
-            IPackageFile[] packageFiles = referencePackage.Package.GetFiles().ToArray();
-            IPackageFile referenceAssembly =
-                (packageFiles.FirstOrDefault(
-                    f =>
-                        f.Path.StartsWith("ref" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && f.TargetFramework == TargetFrameworkName &&
-                        f.Path.EndsWith(Path.DirectorySeparatorChar + referenceName + ".dll", StringComparison.OrdinalIgnoreCase)) ??
-                 packageFiles.FirstOrDefault(
-                     f =>
-                         f.Path.StartsWith("ref" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && f.TargetFramework == null &&
-                         f.Path.EndsWith(Path.DirectorySeparatorChar + referenceName + ".dll", StringComparison.OrdinalIgnoreCase))) ??
-                packageFiles.SingleOrDefault(
-                    f =>
-                        f.TargetFramework == TargetFrameworkName &&
-                        f.Path.EndsWith(Path.DirectorySeparatorChar + referenceName + ".dll", StringComparison.OrdinalIgnoreCase));
-
-            if (referenceAssembly != null)
-            {
-                referencePath = Path.Combine(packageRepository.RepositoryRoot.Root, referenceName, referencePackage.Version.ToString(), referenceAssembly.Path);
-                DebugMessage("EdgeCompiler::TryCompile (CLR) - Found the assembly for {0} at {1}", referenceName, referencePath);
-            }
-
-            if (String.IsNullOrEmpty(referencePath))
-            {
-                throw new Exception(String.Format("Unable to load the reference to {0}.", referenceName));
-            }
-
-            metadataReferences.Add(MetadataReference.CreateFromFile(referencePath));
+            DebugMessage("EdgeCompiler::TryCompile (CLR) - Reference to {0} resolved to {1}", referenceName, compileAssemblies[referenceName]);
+            metadataReferences.Add(MetadataReference.CreateFromFile(compileAssemblies[referenceName]));
         }
 
         CSharpCompilationOptions compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: DebuggingEnabled
@@ -306,7 +237,7 @@ public class Startup
             : OptimizationLevel.Release);
 
         DebugMessage("EdgeCompiler::TryCompile (CLR) - Starting compilation");
-        
+
         CSharpCompilation compilation = CSharpCompilation.Create(Guid.NewGuid() + ".dll", new SyntaxTree[]
         {
             syntaxTree
