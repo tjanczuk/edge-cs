@@ -28,6 +28,10 @@ public class EdgeCompiler
     {
         Assembly result = null;
         Dictionary<string, Assembly> requesting;
+        if (args.RequestingAssembly == null)
+        {
+            return null;
+        }
         if (referencedAssemblies.TryGetValue(args.RequestingAssembly.FullName, out requesting))
         {
             requesting.TryGetValue(args.Name, out result);
