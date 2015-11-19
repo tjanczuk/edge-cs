@@ -5,9 +5,9 @@
     "url": "http://tomasz.janczuk.org",
     "twitter": "tjanczuk"
   },
-  "version": "0.2.8-pre",
+  "version": "0.3.0",
   "description": "Edge-cs: run C# and node.js code in-process with edge.js",
-  "tags" : ["owin", "edge", "net", "clr", "c#", "managed", ".net"],
+  "tags" : ["owin", "edge", "net", "clr", "coreclr", "c#", "managed", ".net"],
   "main": "./lib/edge-cs.js",
   "engines": { "node": ">= 0.8" },
   "licenses": [ { "type": "Apache", "url": "http://www.apache.org/licenses/LICENSE-2.0" } ],
