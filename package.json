@@ -20,5 +20,8 @@
   },
   "bugs" : {
     "url" : "http://github.com/tjanczuk/edge-cs/issues"
+  },
+  "scripts": {
+    "install": "node tools/install.js"
   }
 }

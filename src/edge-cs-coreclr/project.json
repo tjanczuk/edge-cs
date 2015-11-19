@@ -1,0 +1,18 @@
+﻿{
+    "frameworks": {
+        "dnxcore50": {
+            "dependencies": {
+                "Microsoft.CodeAnalysis.CSharp": "1.1.0-rc1-20151109-01",
+                "System.Text.RegularExpressions": "4.0.11-beta-23516",
+                "System.Console": "4.0.0-beta-23516",
+                "System.IO.FileSystem": "4.0.1-beta-23516",
+                "System.Reflection": "4.1.0-beta-23516",
+                "System.Reflection.TypeExtensions": "4.1.0-beta-23516",
+                "System.Runtime": "4.0.21-beta-23516"
+            }
+        }
+    },
+    "exclude": [
+        "node_modules/**"
+    ]
+}
