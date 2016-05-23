@@ -21,7 +21,7 @@ function whereis() {
     return null;
 }
 
-var dnuPath = whereis('dnu', 'dnu.cmd');
+var dnuPath = whereis('dotnet', 'dotnet.exe');
 
 if (dnuPath) {
 	childProcess.spawn(dnuPath, ['restore'], {
