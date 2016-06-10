@@ -21,11 +21,16 @@ function whereis() {
     return null;
 }
 
-var dnuPath = whereis('dotnet', 'dotnet.exe');
+var dotnetPath = whereis('dotnet', 'dotnet.exe');
 
-if (dnuPath) {
-	childProcess.spawn(dnuPath, ['restore'], {
-		cwd: path.join(__dirname, '..', 'lib', 'edge-cs-coreclr'),
+if (dotnetPath) {
+	childProcess.spawn(dotnetPath, ['restore'], {
+		cwd: path.join(__dirname, '..', 'lib', 'bootstrap'),
 		stdio: 'inherit'
+	}).on('close', function() {
+		childProcess.spawn(dotnetPath, ['build', '--configuration', 'Release'], {
+			cwd: path.join(__dirname, '..', 'lib', 'bootstrap'),
+			stdio: 'inherit'
+		});
 	});
 }

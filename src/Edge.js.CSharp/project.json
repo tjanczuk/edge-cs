@@ -1,4 +1,6 @@
 ﻿{
+  "version": "0.3.1-pre",
+
   "frameworks": {
     "netstandard1.5": {
       "dependencies": {
