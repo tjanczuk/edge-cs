@@ -1,5 +1,12 @@
 ﻿{
   "version": "1.0.0",
+  "title": "C# compiler for Edge.js",
+  "description": "Edge.js enables scripting CLR languages from Node.js. This package is a dependency of Edge.js and supports scripting C# from Node.",
+  "packOptions": {
+    "summary": "Script C# from Node.js.",
+    "projectUrl": "https://github.com/tjanczuk/edge",
+    "licenseUrl": "https://github.com/tjanczuk/edge-cs/blob/master/LICENSE.txt"
+  },
 
   "frameworks": {
     "netstandard1.6": {
