@@ -135,9 +135,9 @@ public class EdgeCompiler
                 + "public class Startup {\n"
                 + "    public async Task<object> Invoke(object ___input) {\n"
                 + lineDirective
-                + "        Func<object, Task<object>> func = " + source + ";\n"
+                + "        Func<object, Task<object>> ___func = " + source + ";\n"
                 + "#line hidden\n"
-                + "        return await func(___input);\n"
+                + "        return await ___func(___input);\n"
                 + "    }\n"
                 + "}";
 
